@@ -1,0 +1,185 @@
+---
+title: "YouTube Analysis"
+author: "Zhexuan Meng"
+date: "11/5/2019"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+z
+library(corrplot)
+library(RColorBrewer)
+library(stringr)
+library(tm)
+library(wordcloud)
+us_video <- read_csv('USvideos.csv')
+```
+
+
+```{r}
+## Video Category Analysis 
+# decode categories 
+df_video <- us_video %>% 
+  mutate(
+    category_name=case_when(
+      category_id==1 ~ 'Film and Animation',
+      category_id==2 ~ 'Autos & Vehicles',
+      category_id==10 ~ 'Music',
+      category_id==15 ~ 'Pets & Animals',
+      category_id==17 ~ 'Sports',
+      category_id==19 ~ 'Travel & Events',
+      category_id==20 ~ 'Gaming',
+      category_id==23 ~ 'Comedy',
+      category_id==24 ~ 'Entertainment',
+      category_id==25 ~ 'News & Politics',
+      category_id==26 ~ 'Howto & Style',
+      category_id==27 ~ 'Education',
+      category_id==28 ~ 'Science & Technology',
+      category_id==29 ~ 'Nonprofits & Activism')) %>% 
+  group_by(category_name) %>% 
+  summarise(count=n(), views=sum(views), likes=sum(likes), comments=sum(comment_count), 
+             dislikes=sum(dislikes))
+
+# Number of Different Videos by Category (Bar Plot)
+n = length(unique(df_video$category_name))
+mycolors = c(brewer.pal(name="Set3", n = 12), brewer.pal(name="Pastel1", n = 3))
+
+ggplot(data=df_video, aes(fct_reorder(category_name, count), count, fill=category_name)) +
+  geom_bar(stat = "identity") + scale_fill_manual(values = mycolors) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1), 
+        plot.title = element_text(hjust = 0.5)) +
+  xlab('Video Category') +
+  ylab("Counts") +
+  ggtitle("Video Category Counts")
+
+# Number of views by video category (line)
+ggplot(data=df_video, aes(category_name, views, fill=category_name)) +
+  geom_bar(stat = "identity", fill="darkred") + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 1), 
+        plot.title = element_text(hjust = 0.5)) +
+  xlab('Video Category') +
+  ylab("Views") +
+  ggtitle("Views by Video Category")
+
+# Number of likes, comments, dislikes by video category (line)
+ggplot(data=df_video, aes(category_name, group=1)) +
+  geom_line(aes(y=likes, color="likes")) + 
+  geom_line(aes(y=comments, color="comments")) + 
+  geom_line(aes(y=dislikes, color="dislikes")) + 
+  scale_color_manual(values = c(
+    'likes' = 'steelblue', "comments" = "#E69F00", "dislikes" = "darkred")) +
+  labs(color = 'series') + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 1), 
+        plot.title = element_text(hjust = 0.5)) +
+  xlab('Video Category') +
+  ylab("Counts") +
+  ggtitle("Likes, Comments, Dislikes by Video Category")
+```
+
+
+```{r}
+## Sentiment Analysis
+# create new features
+us_video$likes_rate <- us_video$likes/us_video$views
+us_video$dislikes_rate <- us_video$dislikes/us_video$views
+us_video$comments_rate <- us_video$comment_count/us_video$views
+# variable transformation 
+us_video$views_log <- log(us_video$views+1)
+us_video$likes_log <- log(us_video$likes+1)
+us_video$dislikes_log <- log(us_video$dislikes+1)
+us_video$comments_log <- log(us_video$comment_count+1)
+# correlation matrix
+M <- cor(us_video[,c("likes_rate", "dislikes_rate", "comments_rate", "views_log","likes_log","dislikes_log","comments_log")])
+corrplot(M, method='color', type='upper', addCoef.col = "grey", order='AOE', col = brewer.pal(n = 8, name = "RdBu"), number.cex=0.7, tl.col="black", tl.srt=45)
+```
+
+
+```{r}
+## Tages Analysis
+# remove space and separate signs
+us_video$adj_tags <- gsub('["|"]', '', us_video$tags)
+us_video$adj_tags <- str_replace_all(us_video$adj_tags, " ", "")
+# count the number of tags per video
+us_video$tag_num = str_count(us_video$tags, '|') + 1
+# count total characters per tag
+us_video$tag_chars=nchar(us_video$adj_tags)
+# count total words per tag
+us_video$sep_tag<-gsub('["|"]', ' ', us_video$tags)
+us_video$tag_words <- sapply(strsplit(us_video$sep_tag, "\\s+"), length)
+
+# correlation matrix
+M <- cor(us_video[,c("tag_num", "tag_chars", "tag_words", "likes_rate", "dislikes_rate", "comments_rate", "views_log","likes_log","dislikes_log","comments_log")])
+corrplot(M, method='color', order='AOE', type='upper', addCoef.col = "grey", col = brewer.pal(n = 8, name = "RdBu"), number.cex=0.7, tl.col="black", tl.srt=45)
+
+# wordclous analysis
+tag <- us_video %>%
+  separate_rows(sep_tag, sep = "\\ ") %>%
+  mutate(tags = str_replace_all(sep_tag, '"', "")) %>%
+  group_by(tags) %>%
+  summarise(n = n()) %>%
+  filter(!(tags %in% c("s", "the", "The", "and", "or", "a", "-", "")))
+
+wordcloud(words = tag$tags, freq = tag$n, max.words = 200, random.order = FALSE, 
+          colors=brewer.pal(8, "Dark2"))
+```
+
+
+```{r}
+## Title Analysis
+us_video$title_words <- stringi::stri_count_words(us_video$title)
+
+# correlation matrix
+M <- cor(us_video[,c("title_words", "tag_num", "tag_chars", "tag_words", "likes_rate", "dislikes_rate", "comments_rate", "views_log","likes_log","dislikes_log","comments_log")])
+corrplot(M, method='color', order='AOE', col = brewer.pal(n = 8, name = "RdBu"), type="upper",
+         addCoef.col = "grey", number.cex=0.7, tl.col="black", tl.srt=45)
+
+# wordclous analysis
+title <- us_video %>%
+  separate_rows(title, sep = "\\ ") %>%
+  mutate(title = str_replace_all(title, ':', "")) %>%
+  group_by(title) %>%
+  summarise(n = n()) %>%
+  filter(!(title %in% c("s", "the", "The", "THE", "to", "in", "of", "&", "and", "or", "a", "-", "A", "|", "")))
+
+wordcloud(words = title$title, freq = title$n, max.words = 200, random.order = FALSE, 
+          colors=brewer.pal(8, "Dark2"))
+```
+
+
+```{r}
+## Publish Time Analysis
+# month analysis
+us_video$month = factor(month(us_video$publish_time))
+month_count <- us_video %>% group_by(month) %>% summarise(count=n(), views=sum(views))
+# video records
+p1<-ggplot(data=month_count, aes(month, count, group=1)) +
+  geom_line(color='darkred') +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  xlab('Month') + ylab("Count") + ggtitle("Monthly Video Records")
+# number of views
+p2<-ggplot(data=month_count, aes(month, views, group=1)) +
+  geom_line(color='darkred') +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  xlab('Month') + ylab("Views") + ggtitle("Monthly Video Views")
+grid.arrange(p1, p2, nrow = 1)
+
+
+# hour analysis
+us_video$hour = factor(hour(us_video$publish_time))
+hour_count <- us_video %>% group_by(hour) %>% summarise(count=n(), views=sum(views))
+# video records
+p3<-ggplot(data=hour_count, aes(hour, count, group=1)) +
+  geom_line(color="steelblue") + 
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "none") +
+  xlab('Hour') + ylab("Count") + ggtitle("Hourly Video Records")
+# number of views
+p4<-ggplot(data=hour_count, aes(hour, views, group=1)) +
+  geom_line(color="steelblue") + 
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "none") +
+  xlab('Hour') + ylab("Views") + ggtitle("Hourly Video Views")
+grid.arrange(p3, p4, nrow = 1)
+```
+
+
