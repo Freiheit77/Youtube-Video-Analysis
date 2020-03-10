@@ -16,3 +16,6 @@ categories, higher like/view conversion rates are expected.
 3. Text mining shows tages like “makeup”, “funny”, “music”, “comedy”, “food”, “news” are frequently appeared, and titles like “2018”, “video”, “trailer”, “official”, “How” are frequently appeared. Therefore, bloggers could add more attractive tags
 and refine titles.
 4. The month differences show that July to October is slack season of video production and views. The hour differences show that most videos are produced in the afternoon, while early morning and afternoon are two peak viewing time. Bloggers could publish more videos during July to October to gain more market shares and audience attention. In addition, bloggers could do promotions and campaigns during the viewing peak hours to gain more exposure and attention.
+
+The output EDA is shown in this link: 
+https://rpubs.com/zxuannn/youtubevideoanalysis
